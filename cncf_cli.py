@@ -1,34 +1,38 @@
-import yaml  
-import argparse
-from pprintpp import pprint
-Yamlfile = 'projects.yml'
+from flask import Flask, request, render_template
+import yaml
 
-#Creating the parser for interpeting the commands
-parser = argparse.ArgumentParser()
+app = Flask(__name__, static_url_path='/static')
 
-#Adding the name argument
-parser.add_argument('--name', '-n', type=str, required=True)
-
-
-# Defining a function that reads the projects name from the YAML File
-def get_project_name(project_name):
-    with open(Yamlfile) as y:
+def get_project_name(project_name): 
+    project_name = project_name.lower().title()
+    with open('projects.yml') as y:
         landscape = yaml.safe_load(y)
-        for category in landscape['landscape']:
-            for subcategory in category['subcategories']:
-                for item in subcategory['items']:
-                    if item['name'] == project_name:
-                        print("Category:")
-                        pprint(category['name'])
-                        print("Subcategory:")
-                        pprint(subcategory['name'])
-                        print("Item Details:")
-                        pprint(item)
-                        return
-        print(f"Project '{project_name}' not found.")
+        for category in landscape.get('landscape', []):
+            subcategories = category.get('subcategories', [])
+            for subcategory in subcategories:
+                items = subcategory.get('items', [])
+                for item in items:
+                    if item.get('name') == project_name:
+                        category_name = category.get('name')
+                        subcategory_name = subcategory.get('name')
+                        item_details = {
+                            key.capitalize(): value for key, value in item.items()
+                        }
+                        return category_name, subcategory_name, item_details
 
- #parsing the entered argument       
-args = parser.parse_args()
+        return None
 
-#getting the project data
-get_project_name(args.name)
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        project_name = request.form.get('project_name')
+        category_name, subcategory_name, item_details = get_project_name(project_name)
+        if item_details:
+            return render_template('index.html', category=category_name, subcategory=subcategory_name, details=item_details)
+        else:
+            return render_template('index.html', error_message=f"Project '{project_name}' not found.")
+    return render_template('index.html', category=None, subcategory=None, details=None)
+
+
+if __name__ == '__main__':
+    app.run()
